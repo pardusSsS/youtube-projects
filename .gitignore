@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Mac OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Manim output
+media/
+images/
+
+# Virtual Environment
+env/
+venv/
+.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Generated Video/Audio
+voiceovers/
+partial_movie_files/
+*.mp4
+*.mp3
+*.wav
+
+# Temp files
+*.log
+*.tmp
