@@ -16,6 +16,7 @@ import edge_tts
 
 VOICE = "en-US-GuyNeural"
 RATE = "-4%"          # a touch slower: this is a dense, formula-heavy topic
+SHORT_RATE = "+6%"    # Shorts want pace; the ideas here are much lighter
 OUT_DIR = "voiceovers"
 
 SCRIPTS = {
@@ -212,14 +213,58 @@ waveform right and the radar sees everything. Thanks for watching.
 }
 
 
-async def synth():
+# ---------------------------------------------------------------------------
+# Vertical Short: "How Can Radar Know Your Speed?"  (target: under 60 s)
+# ---------------------------------------------------------------------------
+SHORT_SCRIPTS = {
+    "Short1": """
+A speed gun clocks you at ninety. It never measured how far away you were.
+So how does it know?
+""",
+
+    "Short2": """
+Listen to a siren pass. Coming at you, the pitch is high. Going away, it drops.
+It squeezes its own wavefronts. That is Doppler.
+""",
+
+    "Short3": """
+Radio waves do the same. Your car compresses the wave it reflects, so the echo
+comes back at a slightly higher frequency than it left.
+""",
+
+    "Short4": """
+The shift is twice your speed over the wavelength. Twice, because it happens
+once on the way in, and again on the way out.
+""",
+
+    "Short5": """
+At twenty four gigahertz, thirty metres per second gives four point eight
+kilohertz. Even walking pace gives a clean hundred and sixty hertz.
+""",
+
+    "Short6": """
+One catch. Doppler only sees motion along the beam. Cross at ninety degrees and
+you vanish. Which is why they never aim it sideways.
+""",
+}
+
+
+ALL_SCRIPTS = {**SCRIPTS, **SHORT_SCRIPTS}
+
+
+async def synth(which="all"):
     os.makedirs(OUT_DIR, exist_ok=True)
-    print(f"--- Seslendirme baslıyor: {VOICE} (rate {RATE}) ---")
-    for part, text in SCRIPTS.items():
+    jobs = []
+    if which in ("all", "long"):
+        jobs += [(p, t, RATE) for p, t in SCRIPTS.items()]
+    if which in ("all", "short"):
+        jobs += [(p, t, SHORT_RATE) for p, t in SHORT_SCRIPTS.items()]
+    print(f"--- Seslendirme baslıyor: {VOICE} ({len(jobs)} parca) ---")
+    for part, text, rate in jobs:
         path = os.path.join(OUT_DIR, f"{part}.mp3")
         clean = " ".join(text.split())
-        print(f"  isleniyor: {part} ({len(clean.split())} kelime)")
-        await edge_tts.Communicate(clean, VOICE, rate=RATE).save(path)
+        print(f"  isleniyor: {part} ({len(clean.split())} kelime, rate {rate})")
+        await edge_tts.Communicate(clean, VOICE, rate=rate).save(path)
 
 
 def probe(path):
@@ -231,18 +276,29 @@ def probe(path):
 
 
 def write_durations():
-    durations = {p: probe(os.path.join(OUT_DIR, f"{p}.mp3")) for p in SCRIPTS}
+    """One durations.json covering both the long video and the Short."""
+    durations = {}
+    for p in ALL_SCRIPTS:
+        path = os.path.join(OUT_DIR, f"{p}.mp3")
+        if os.path.exists(path):
+            durations[p] = probe(path)
     with open(os.path.join(OUT_DIR, "durations.json"), "w") as f:
         json.dump(durations, f, indent=2)
-    total = sum(durations.values())
     print("\n--- Sure raporu ---")
-    for p, d in durations.items():
-        print(f"  {p:<7} {d:7.2f} s")
-    print(f"  {'TOPLAM':<7} {total:7.2f} s  ({total/60:.2f} dk konusma)")
+    for group, name in ((SCRIPTS, "VIDEO"), (SHORT_SCRIPTS, "SHORT")):
+        rows = [(p, durations[p]) for p in group if p in durations]
+        if not rows:
+            continue
+        for p, d in rows:
+            print(f"  {p:<8} {d:7.2f} s")
+        tot = sum(d for _, d in rows)
+        print(f"  {name + ' TOPLAM':<8} {tot:7.2f} s  ({tot/60:.2f} dk konusma)\n")
     return durations
 
 
 if __name__ == "__main__":
-    asyncio.run(synth())
+    import sys
+    which = sys.argv[1] if len(sys.argv) > 1 else "all"
+    asyncio.run(synth(which))
     write_durations()
-    print("\n--- TAMAMLANDI ---")
+    print("--- TAMAMLANDI ---")
